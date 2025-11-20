@@ -20,7 +20,11 @@ def load_driving_pattern():
 
 st.set_page_config(page_title="EV Simulator", layout="wide")
 
-st.title("🔋 EV Simulator | Design Debugger - System Design Challenge | ExtEND'25")
+st.markdown(
+    "<h1>🔋 EV Simulator | Design Debugger - System Design Challenge | <span style='color:green'>ExtEND'25</span></h1>",
+    unsafe_allow_html=True
+)
+
 st.header("Input Load Profile for Simulation")
 pattern = {}  # You can expand this later
 

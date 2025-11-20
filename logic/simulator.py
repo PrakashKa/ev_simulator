@@ -20,7 +20,7 @@ def run_simulation(df, config):
     voltage_list = []
     current_list = []
     energy_consumed_list = []
-    invertor_current = []
+    battery_current_list = []
     force_gradient = []
 
     # Lock layout with containers
@@ -39,8 +39,8 @@ def run_simulation(df, config):
     with st.container():
         row3_col1, row3_col2, row3_col3 = st.columns(3)
         graph_battery_soc = row3_col1.empty()
-        graph_force = row3_col2.empty()
-        graph_battery_current = row3_col3.empty()
+        graph_battery_current = row3_col2.empty()
+        graph_motor_temperature = row3_col3.empty()
 
     # Calculate the vehicle dynamics
     df = calculate_parameters(df, config)
@@ -54,8 +54,8 @@ def run_simulation(df, config):
 
         # Torque calculation
         motor_type = config["motor_type"]
-        motor_data = motor_specs.get(motor_type, {})
-        max_motor_torque = motor_data.get("torque_nm", 200)
+        motor_data = motor_specs[motor_type]
+        max_motor_torque = motor_data["torque_nm"]
         max_battery_current = config["battery_max_current"]
 
         torque = df["Motor Torque [Nm]"].iloc[i]
@@ -63,7 +63,7 @@ def run_simulation(df, config):
 
         soc = df["SOC [%]"].iloc[i]
         distance = df["Distance Travelled [km]"].iloc[i]
-        
+        temp = df["Motor Net Temp Rise [K]"].iloc[i]
         # temp = update_temperature(temp, total_power_kw, config["cooling_type"])
 
         # Append values
@@ -72,12 +72,12 @@ def run_simulation(df, config):
         elevation_list.append(df["Elevation [m]"].iloc[i])
         distance_list.append(distance)
         soc_list.append(soc)
-        # temp_list.append(temp)
+        temp_list.append(temp)
         torque_list.append(torque)
         voltage_list.append(df["Motor Voltage [V]"].iloc[i])
         current_list.append(df["Motor Current [A]"].iloc[i])
         energy_consumed_list.append(df["Energy Used [kWh]"].iloc[i])
-        invertor_current.append(battery_current)
+        battery_current_list.append(battery_current)
         force_gradient.append(df['force_gradient'].iloc[i])
 
         # Plot 1: Speed vs Time
@@ -106,7 +106,7 @@ def run_simulation(df, config):
 
         # Plot 5: Motor Current vs Time
         fig_motor_current = go.Figure()
-        fig_motor_current.add_trace(go.Scatter(x=time_list, y=current_list, name="Motor Current [A]", line=dict(color="red")))
+        fig_motor_current.add_trace(go.Scatter(x=time_list, y=current_list, name="Motor Current [A]", line=dict(color="green")))
         fig_motor_current.update_layout(title="Motor Current [A]", xaxis_title="Time (s)", yaxis_title="Motor Current [A]", width=500)
         graph_motor_current.plotly_chart(fig_motor_current, config={"responsive": True})
 
@@ -122,17 +122,17 @@ def run_simulation(df, config):
         fig_soc.update_layout(title="State of Charge [%]", xaxis_title="Time (s)", yaxis_title="State of Charge [%]", width=500)
         graph_battery_soc.plotly_chart(fig_soc, config={"responsive": True})
 
-        # Plot 7: Battery SOC
-        fig_force = go.Figure()
-        fig_force.add_trace(go.Scatter(x=time_list, y=df["Recovered_kWh"] , name="Recovered_kWh", line=dict(color="red")))
-        fig_force.update_layout(title="Recovered_kWh", xaxis_title="Time (s)", yaxis_title="Recovered_kWh", width=500)
-        graph_force.plotly_chart(fig_force, config={"responsive": True})
-
-        # Plot 9: Battery Current vs Time
-        fig_bat_current= go.Figure()
-        fig_bat_current.add_trace(go.Scatter(x=time_list, y=invertor_current, name="Battery Current [A]", line=dict(color="blue")))
+        # Plot 7: Battery Current
+        fig_bat_current = go.Figure()
+        fig_bat_current.add_trace(go.Scatter(x=time_list, y=battery_current_list, name="Battery Current [A]", line=dict(color="green")))
         fig_bat_current.update_layout(title="Battery Current [A]", xaxis_title="Time (s)", yaxis_title="Battery Current [A]", width=500)
         graph_battery_current.plotly_chart(fig_bat_current, config={"responsive": True})
+
+        # Plot 7: Motor temperature
+        fig_motor_temp = go.Figure()
+        fig_motor_temp.add_trace(go.Scatter(x=time_list, y=temp_list, name="Motor Temp Rise [K]", line=dict(color="red")))
+        fig_motor_temp.update_layout(title="Motor Temp Rise [K]", xaxis_title="Time (s)", yaxis_title="Motor Temp Rise [K]", width=500)
+        graph_motor_temperature.plotly_chart(fig_motor_temp, config={"responsive": True})
 
 
         # time.sleep(0.01)
@@ -141,7 +141,7 @@ def run_simulation(df, config):
             break
         
         # Check torque limit
-        if torque > max_motor_torque*1.2:
+        if torque > max_motor_torque:
             st.error("❌ Vehicle stalled: torque demand exceeded motor limit. Invalid Configuration!")
             break
 
@@ -150,11 +150,23 @@ def run_simulation(df, config):
             st.error("❌ Battery overloaded: Max. Current limit reached. Invalid Configuration!")
             break
 
-        
 
-    st.subheader("📊 Simulation Summary")
-    st.metric("Total Distance Travelled (km)", round(distance, 2))
-    st.metric("Final State of Charge (%)", round(soc, 1))
-    st.metric("Energy Consumed (kW)", round(df["Energy Used [kWh]"].iloc[:i].sum(), 1))
-    st.metric("Energy Recovered (kW)", round(df["Recovered_kWh"].iloc[:i].sum(), 1))
-    # st.metric("Peak Battery Temperature (°C)", round(max(temp_list), 1))
+    # Split into two columns
+    col1, col2 = st.columns([1, 1])  # Wider plot column
+
+    with col1:
+        st.subheader("📊 Simulation Summary")
+        st.metric("Total Distance Travelled (km)", round(distance, 2))
+        st.metric("Final State of Charge (%)", round(soc, 1))
+        st.metric("Energy Consumed (kW)", round(df["Energy Used [kWh]"].iloc[:i].sum(), 1))
+        st.metric("Energy Recovered (kW)", round(df["Recovered_kWh"].iloc[:i].sum(), 1))
+        # st.metric("Peak Battery Temperature (°C)", round(max(temp_list), 1))
+    with col2:
+        st.subheader("📊 Performance Metrics")
+        distance_range = (distance/(90-soc))*85
+        ratio =  config["vehicle_cost"] /distance_range
+        st.metric("Estimated Range (km)", round(distance_range, 2))
+        st.metric("Vehicle Cost", round(config["vehicle_cost"], 1))
+        st.metric("Cost to Range ratio", round(ratio, 1))
+
+

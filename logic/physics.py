@@ -1,5 +1,5 @@
 # logic/physics.py
-from config.parameters import motor_specs, transmission_models, regen_specs
+from config.parameters import motor_specs, transmission_models, regen_specs,cooling_params
 import math
 import pandas as pd
 import numpy as np
@@ -21,6 +21,8 @@ def calculate_parameters(df, config):
     compute_power_draw(df, config)
 
     compute_required_torque(df, config)
+
+    motor_temperature(df, config)
 
     compute_voltage_current(df, config)
 
@@ -75,7 +77,7 @@ def compute_resistive_forces(df, config):
     # Tyre rolling resistance coefficient
     tyre_map = {"Eco": 0.008, "Standard": 0.010, "Performance": 0.014}
 
-    C_rr = tyre_map.get(config["tyre_type"], 0.010)
+    C_rr = tyre_map[config["tyre_type"]]
 
     # Rolling resistance
     force_rolling_resistance = C_rr * config["vehicle_mass"] * g
@@ -95,21 +97,59 @@ def compute_resistive_forces(df, config):
     return
 
 def compute_power_draw(df, config):
-    # Motor efficiency lookup
-    motor_data = motor_specs.get(config["motor_type"], {})
-    motor_efficiency = motor_data.get("efficiency", 0.90)
-    inverter_eff = config["inverter_efficiency"] / 100
 
+    # Motor efficiency lookup
+    motor_data = motor_specs[config["motor_type"]]
+    motor_efficiency = motor_data["efficiency"]
+    inverter_eff = config["inverter_efficiency"] 
+    hvac_eff = config["hvac_efficiency"] 
+    sys_efficiency = config["system_efficiency"]
+    
     # Mechanical power
     mechanical_power = (df["Total Force [N]"] * df["Speed [m/s]"]) / 1000
 
-    # Add auxiliary load
-    total_power = mechanical_power + config["auxiliary_load"]
+    throttle_mask = df["Velocity [km/h]"] > 0
+
+    auxiliary_load = np.where(throttle_mask, config["auxiliary_load"], 0)
+
+    coolant_load = np.where(throttle_mask, config["coolant_power"], 0)
+
+    auxiliary_load = auxiliary_load / hvac_eff
 
     # Adjust for efficiency
-    df["Power Drawn [kW]"] = total_power/ (motor_efficiency * inverter_eff)
+    Power_Draw = mechanical_power/ (motor_efficiency * inverter_eff * sys_efficiency)
+
+    # Adjust for efficiency
+    df["Power Drawn [kW]"] = Power_Draw + auxiliary_load + coolant_load
 
     return
+def motor_temperature(df, config):
+
+    # Motor efficiency lookup
+    motor_data = motor_specs[config["motor_type"]]
+    motor_efficiency = motor_data["efficiency"]
+
+        # --- Thermal modeling ---
+    P_in = df["Power Drawn [kW]"] * 1000  # convert to W
+    P_loss = P_in * (1 - motor_efficiency)
+
+    # Motor parameters
+    motor_mass = motor_data["mass"]           # kg
+    motor_cp = motor_data["specific_heat"]    # J/(kg*K)
+
+    timestep = df["Time [s]"].diff()
+    # Temperature rise without cooling
+    df["Motor Temp Rise [K]"] = (P_loss * timestep) / (motor_mass * motor_cp) 
+
+    # Cooling effect
+
+    coolant_spec = cooling_params[config["coolant_flow"]]
+    coolant_flow = coolant_spec['approx_L_per_min']   # kg/s
+    coolant_cp = coolant_spec['coolant_cp']          # J/(kg*K) water
+
+    Q_cool = coolant_flow * coolant_cp * (df["Motor Temp Rise [K]"]) 
+
+    df["Motor Net Temp Rise [K]"] = 300 + ((P_loss - Q_cool) * timestep / (motor_mass * motor_cp))*100
 
 
 def compute_required_torque(df, config, drivetrain_eff = 0.9):
@@ -129,8 +169,8 @@ def compute_required_torque(df, config, drivetrain_eff = 0.9):
 def compute_voltage_current(df, config):
 
     # Motor efficiency lookup
-    motor_data = motor_specs.get(config["motor_type"], {})
-    motor_code = motor_data.get("code", 'PMSM')
+    motor_data = motor_specs[config["motor_type"]]
+    motor_code = motor_data["code"]
 
     Vdc = config["system_voltage"]
 
@@ -166,16 +206,6 @@ def compute_soc(df, config):
     df["SOC [%]"] = df["SOC [%]"].clip(lower=0)
 
     return
-
-
-def update_temperature(prev_temp, power_kw, cooling_type):
-
-    cooling_factor = {"Passive": 0.002, "Liquid": 0.004, "Active": 0.006}
-
-    cooling = cooling_factor.get(cooling_type, 0.002)
-    delta_temp = 0.01 * power_kw - cooling
-
-    return prev_temp + delta_temp
 
 def regen_energy_kwh(df, config):
     """

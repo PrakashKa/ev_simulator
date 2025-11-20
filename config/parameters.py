@@ -105,45 +105,57 @@ battery_data = {
 motor_specs = {
     "Permanent Magnet Synchronous Motor (PMSM / PSM)": {
         "code": "PMSM",
+        "mass" : 60,
         "power_kw": 100,
-        "torque_nm": 250,
-        "efficiency": 92,
-        "cost_inr": 300000
+        "torque_nm": 150,
+        "efficiency": 0.92,
+        "cost_inr": 300000,
+        "specific_heat": 500
     },
     "Interior Permanent Magnet Motor (IPM)": {
         "code": "IPM",
+        "mass" : 80,
         "power_kw": 200,
-        "torque_nm": 300,
-        "efficiency": 93,
-        "cost_inr": 400000
+        "torque_nm": 250,
+        "efficiency": 0.93,
+        "cost_inr": 400000,
+        "specific_heat": 385
     },
     "Induction Motor (IM)": {
         "code": "IM",
+        "mass" : 70,
         "power_kw": 150,
-        "torque_nm": 250,
-        "efficiency": 85,
-        "cost_inr": 200000
+        "torque_nm": 200,
+        "efficiency": 0.88,
+        "cost_inr": 200000,
+        "specific_heat": 600
     },
     "Switched Reluctance Motor (SRM)": {
         "code": "SRM",
-        "power_kw": 100,
+        "mass" : 60,
+        "power_kw": 120,
         "torque_nm": 250,
-        "efficiency": 85,
-        "cost_inr": 200000
+        "efficiency": 0.90,
+        "cost_inr": 200000,
+        "specific_heat": 400
     },
     "Brushless DC Motor (BLDC)": {
         "code": "BLDC",
-        "power_kw": 10,
+        "mass" : 50,
+        "power_kw": 100,
         "torque_nm": 150,
-        "efficiency": 88,
-        "cost_inr": 80000
+        "efficiency": 0.85,
+        "cost_inr": 80000,
+        "specific_heat": 400
     },
     "Axial Flux Permanent Magnet Motor (AFPM)": {
         "code": "AFPM",
+        "mass" : 90,
         "power_kw": 300,
         "torque_nm": 350,
-        "efficiency": 94,
-        "cost_inr": 700000
+        "efficiency": 0.94,
+        "cost_inr": 700000,
+        "specific_heat": 500
     }
 }
 
@@ -151,21 +163,21 @@ motor_specs = {
 transmission_models = {
     "eGearDrive": {
         "Type": "Single-speed reduction",
-        "Gear Ratio": 6,
+        "Gear Ratio": 5,
         "Max Torque Capacity [Nm]": 300,
         "Efficiency": 0.98,
         "Cost": 80000
     },
     "Module-e-Drive": {
         "Type": "Single-speed integrated axle",
-        "Gear Ratio": 9,
+        "Gear Ratio": 6,
         "Max Torque Capacity [Nm]": 350,
         "Efficiency": 0.98,
         "Cost": 120000
     },
     "Module-3 Gearbox": {
         "Type": "Single-speed planetary",
-        "Gear Ratio": 10,
+        "Gear Ratio": 9,
         "Max Torque Capacity [Nm]": 400,
         "Efficiency": 0.97,
         "Cost": 150000
@@ -188,25 +200,25 @@ transmission_models = {
 
 inverter_specs = {
     "2-Level IGBT VSI": {
-        "efficiency": 96,
+        "efficiency": 0.93,
         "supports_400V": True,
         "supports_800V": False,
         "cost_inr": 6000
     },
     "2-Level MOSFET VSI (Silicon)": {
-        "efficiency": 97,
+        "efficiency": 0.95,
         "supports_400V": True,
         "supports_800V": False,
         "cost_inr": 8000
     },
     "2-Level NPC (IGBT or Si MOSFET)": {
-        "efficiency": 98,
+        "efficiency": 0.98,
         "supports_400V": True,
         "supports_800V": True,
         "cost_inr": 20000
     },
     "2-Level SiC MOSFET VSI": {
-        "efficiency": 99,
+        "efficiency": 0.99,
         "supports_400V": True,
         "supports_800V": True,
         "cost_inr": 20000
@@ -215,26 +227,49 @@ inverter_specs = {
 
 hvac_specs = {
     "HVAC Resistive": {
-        "efficiency": 40,
-        "power_kw": 2,
+        "efficiency": 0.4,
+        "power_kw": 1,
         "cost_inr": 45000
     },
     "HVAC Heatpump": {
-        "efficiency": 60,
-        "power_kw": 1.5,
+        "efficiency": 0.6,
+        "power_kw": 0.75,
         "cost_inr": 75000
     }
 }
 
 regen_specs = {
     "Full Hardware": {
-        "efficiency": 0.35,
-        "Max. Recovery": 80000,
+        "efficiency": 0.2,
+        "Max. Recovery": 40000,
         "cost_inr": 90000
     },
     "Software Only": {
-        "efficiency": 0.2,
-        "Max. Recovery": 40000,
+        "efficiency": 0.1,
+        "Max. Recovery": 20000,
         "cost_inr": 45000
+    }
+}
+
+cooling_params = {
+    "0.80_kg_per_s": {
+      "approx_L_per_min": 48.0,
+      "typical_pump_power_W": 1200,
+      "coolant_cp": 3800  # water–glycol mix (ballpark)
+    },
+    "0.40_kg_per_s": {
+      "approx_L_per_min": 24.0,
+      "typical_pump_power_W": 800,
+      "coolant_cp": 3800  # water–glycol mix (ballpark)
+    },
+    "0.10_kg_per_s": {
+      "approx_L_per_min": 6.0,
+      "typical_pump_power_W": 200,
+      "coolant_cp": 3800  # water–glycol mix (ballpark)
+    },
+    "0.20_kg_per_s": {
+      "approx_L_per_min": 12.0,
+      "typical_pump_power_W": 400,
+      "coolant_cp": 3800  # water–glycol mix (ballpark)
     }
 }

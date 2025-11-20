@@ -1,7 +1,7 @@
 # ui/layout.py
 
 import streamlit as st
-from config.parameters import style_cd_map, style_mass_factor, battery_data, motor_specs, wheel_size_map
+from config.parameters import style_cd_map, style_mass_factor, battery_data, motor_specs, wheel_size_map, cooling_params
 from config.parameters import regen_specs, transmission_models, inverter_specs, hvac_specs, style_cost_factor
 
 
@@ -30,15 +30,13 @@ def render_configuration_panel():
 
         # Derived parameters
         frontal_area = vehicle_width * vehicle_height
-        drag_coefficient = style_cd_map.get(vehicle_style, 0.32)
-        vehicle_mass = (vehicle_length * wheelbase * 100) + (ground_clearance * 1000) + style_mass_factor.get(vehicle_style, 320)
+        drag_coefficient = style_cd_map[vehicle_style]
+        vehicle_mass = (vehicle_length * vehicle_width * vehicle_height * 90) + (ground_clearance * 1000) + style_mass_factor[vehicle_style]
 
         # Display derived values
         st.markdown(f"**Frontal Area:** {frontal_area:.2f} m²")
         st.markdown(f"**Drag Coefficient (Cd):** {drag_coefficient:.2f}")
-        st.markdown(f"**Estimated Vehicle Mass:** {vehicle_mass:.0f} kg")
-
-        st.markdown(f"**Total Vehicle Mass (without battery):** {vehicle_mass:.1f} kg")
+        st.markdown(f"**Estimated Vehicle Mass (without battery):** {vehicle_mass:.0f} kg")
         tyre_size = st.selectbox("Tyre Size", list(wheel_size_map.keys()))
         tyre_spec = wheel_size_map[tyre_size]
         wheel_radius = tyre_spec['wheel_radius']
@@ -53,11 +51,11 @@ def render_configuration_panel():
 
         if system_voltage == "400V":
             sys_voltage = 400
-            sys_efficiency = 0.85
+            sys_efficiency = 1.0
             system_cost_factor = 1
         else:
             sys_voltage = 800
-            sys_efficiency = 0.90
+            sys_efficiency = 1.1
             system_cost_factor = 1.2
 
         
@@ -113,7 +111,7 @@ def render_configuration_panel():
                     pack_energy_Wh = 0
             else:
                 if pack_voltage < 660 or pack_voltage > 820:
-                    st.error("❌For 400V System battery pack voltage should be with in 660V to 820V")
+                    st.error("❌For 800V System battery pack voltage should be with in 660V to 820V")
                     pack_energy_Wh = 0
 
             # Display results
@@ -144,11 +142,21 @@ def render_configuration_panel():
         # For LTO: direct capacity input
         elif battery_chemistry == "Solid-State":
 
-            pack_capacity_kWh = st.number_input("Enter Pack Capacity [kWh]", min_value=1.0, value=45.0, step=1.0)
+            pack_capacity_kWh = st.number_input("Enter Pack Capacity [kWh]", min_value=1.0, max_value=80.0, value=45.0, step=1.0)
             pack_energy_Wh = pack_capacity_kWh * 1000
             pack_voltage = st.number_input("Battery Pack Voltage [V]", min_value=300, max_value=720, value=360, step=10)
             cell_capacity_Ah  = pack_energy_Wh / pack_voltage
             max_current_A = cell_capacity_Ah * battery_spec["max_c_rate"] 
+
+            if system_voltage == "400V":
+                if pack_voltage < 300 or pack_voltage > 450:
+                    st.error("❌For 400V System battery pack voltage should be with in 300V to 450V")
+                    pack_energy_Wh = 0
+            else:
+                if pack_voltage < 660 or pack_voltage > 820:
+                    st.error("❌For 800V System battery pack voltage should be with in 660V to 820V")
+                    pack_energy_Wh = 0
+
 
             # Display results
             st.markdown(f"""
@@ -209,15 +217,15 @@ def render_configuration_panel():
         motor_spec = motor_specs[motor_type]
 
         # Internal short code available
-        motor_type = motor_spec["code"]
+        motor_code = motor_spec["code"]
 
         # Display motor info
         st.markdown(f"""
         **Motor Specifications:**
-        - Code: {motor_type}
+        - Code: {motor_code}
         - Power Rating: {motor_spec['power_kw']} kW  
         - Torque: {motor_spec['torque_nm']} Nm  
-        - Efficiency: {motor_spec['efficiency']} %  
+        - Efficiency: {motor_spec['efficiency']}  
         - Approx. Cost: ₹{motor_spec['cost_inr']:,}
         """)
 
@@ -235,15 +243,30 @@ def render_configuration_panel():
 
         hvac_type = st.selectbox("Select HVAC", list(hvac_specs.keys()))
         hvac_spec = hvac_specs[hvac_type]
-        auxiliary_load = hvac_spec['power_kw'] / hvac_spec['efficiency']
+        auxiliary_load = hvac_spec['power_kw']
         auxillary_cost = hvac_spec['cost_inr']
-
+        hvac_efficiency =  hvac_spec['efficiency']
         # Display motor info
         st.markdown(f"""
         **HVAC Specifications:**
         - Power Rating: {auxiliary_load} kW  
-        - Efficiency: {hvac_spec['efficiency']} %  
+        - Efficiency: {hvac_spec['efficiency']}   
         - Approx. Cost: ₹{auxillary_cost}
+        """)
+
+        st.markdown("### 🔄 Coolant")
+
+        # Dropdown for coolant flow rate
+        coolant_flow = st.selectbox("Coolant flow:", list(cooling_params.keys()))
+        coolant_spec = cooling_params[coolant_flow]
+        coolant_power = coolant_spec['typical_pump_power_W'] / 1000
+
+        # Display coolant specs
+        st.markdown(f"""
+        **Coolant Specs:**
+        - Approx. Flow: {coolant_spec['approx_L_per_min']} L/min  
+        - Pump Power: {coolant_spec['typical_pump_power_W']} W  
+        - Coolant cp: {coolant_spec['coolant_cp']} J/(kg·K)
         """)
 
         st.markdown("### 🔄 Regenerative Braking")
@@ -256,7 +279,7 @@ def render_configuration_panel():
                     # Display motor info
             st.markdown(f"""
             **Regenerative Braking:**
-            - Efficiency: {regen_spec['efficiency']} %  
+            - Efficiency: {regen_spec['efficiency']} 
             - Approx. Cost: ₹{regen_cost}
             """)
         else:
@@ -280,7 +303,7 @@ def render_configuration_panel():
         # Display inverter info
         st.markdown(f"""
         **Inverter Specifications:**
-        - Typical Efficiency: {invertor_spec['efficiency']}%
+        - Typical Efficiency: {invertor_spec['efficiency']}
         - Compatible with 400V: {"✅" if invertor_spec['supports_400V'] else "❌"}
         - Compatible with 800V: {"✅" if invertor_spec['supports_800V'] else "❌"}
         - Cost: ₹{invertor_spec['cost_inr']:,}
@@ -305,7 +328,7 @@ def render_configuration_panel():
 
     return {
         "system_voltage" : sys_voltage,
-        "system efficiency": sys_efficiency,
+        "system_efficiency": sys_efficiency,
         "battery_capacity": pack_energy_Wh/1000,
         "battery_max_current": max_current_A,
         "battery_chemistry": battery_chemistry,
@@ -318,9 +341,13 @@ def render_configuration_panel():
         "vehicle_mass": total_vehicle_mass,
         "drag_coefficient": drag_coefficient,
         "auxiliary_load": auxiliary_load,
+        "hvac_efficiency" : hvac_efficiency,
         "frontal_area": frontal_area,             # m² (optional, default ~2.2 for compact cars)
         "tyre_type": tyre_type,               # "Eco", "Standard", "Performance"
         "wheel_radius": wheel_radius,
-        "transmission_type": transmission_type
+        "transmission_type": transmission_type,
+        "vehicle_cost": total_cost,
+        "coolant_power": coolant_power,
+        "coolant_flow": coolant_flow
     }
 

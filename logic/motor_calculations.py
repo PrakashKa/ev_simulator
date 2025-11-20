@@ -169,7 +169,6 @@ def calculate_pmsm_electrical(df, Vdc):
     # Add to DataFrame
     df["Motor Voltage [V]"] = Vph
     df["Motor Current [A]"] = Iph
-    df["Voltage feasible"] = feasible
 
 
 def calculate_srm_electrical(df, Vdc):
@@ -208,7 +207,7 @@ def calculate_srm_electrical(df, Vdc):
     df["Motor Current [A]"] = Iph
     df["Motor Voltage [V]"] = Vph
 
-        # DC bus current (average)
+    # DC bus current (average)
     P_elec = Iph * Vph  # airgap electrical power
     Idc = P_elec / Vdc  # inverter DC current
 
